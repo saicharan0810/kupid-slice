@@ -1,0 +1,66 @@
+/* Import a modern, clean font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Define CSS variables for our color palette */
+:root {
+  --background-primary: #18181b;
+  --background-secondary: #28282d;
+  --background-tertiary: #3a3a3f;
+  --text-primary: #efeff1;
+  --text-secondary: #a9a9ac;
+  --accent-primary: #e74c3c;
+  --accent-secondary: #9146ff; /* Twitch purple for inspiration */
+  --glow-participant: rgba(0, 255, 0, 0.5);
+  --glow-remote: rgba(145, 70, 255, 0.4);
+}
+
+/* Basic resets and global styles */
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--background-primary);
+  color: var(--text-primary);
+}
+
+/* --- NEW: Animated Gradient Background --- */
+.gradient-background {
+  background: linear-gradient(-45deg, #18181b, #2c253a, #18181b, #3a2525);
+  background-size: 400% 400%;
+  animation: gradient 15s ease infinite;
+  height: 100vh;
+  width: 100vw;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: -1;
+}
+
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+
+/* Animation for floating emojis (unchanged) */
+@keyframes float-up {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-150px) scale(1.5);
+  }
+}
+
+.reaction-emoji {
+  position: absolute;
+  bottom: 100px;
+  font-size: 48px;
+  animation: float-up 3s ease-out forwards;
+  pointer-events: none;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
