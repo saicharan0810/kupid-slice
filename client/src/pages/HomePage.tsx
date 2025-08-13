@@ -12,9 +12,10 @@ interface ActiveRoom {
 interface HomePageProps {
   activeRooms: ActiveRoom[];
   featuredRoomId: string | null;
+  featuredEndsAt?: number | null;
 }
 
-export function HomePage({ activeRooms, featuredRoomId }: HomePageProps) {
+export function HomePage({ activeRooms, featuredRoomId, featuredEndsAt }: HomePageProps) {
   const [isWaiting, setIsWaiting] = useState(false);
   const navigate = useNavigate();
 
@@ -43,14 +44,36 @@ export function HomePage({ activeRooms, featuredRoomId }: HomePageProps) {
     };
   }, [isWaiting]);
 
-  if (featuredRoomId) {
+  const renderMainStageBanner = () => {
+    if (!featuredRoomId) return null;
+    const remaining = featuredEndsAt ? Math.max(0, featuredEndsAt - Date.now()) : null;
+    const mm = remaining ? Math.floor(remaining / 60000) : null;
+    const ss = remaining ? Math.floor((remaining % 60000) / 1000) : null;
     return (
-      <div style={{ padding: '50px', textAlign: 'center' }}>
-        <h1>A date is live on the Main Stage!</h1>
-        <h2 style={{ color: '#555' }}>Joining the show now...</h2>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '14px 16px',
+        background: 'rgba(145,70,255,0.15)',
+        border: '1px solid var(--background-tertiary)',
+        borderRadius: 12,
+        marginBottom: 16
+      }}>
+        <div style={{ fontWeight: 600 }}>Main Stage is LIVE {remaining !== null && (
+          <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>
+            {mm?.toString().padStart(2, '0')}:{ss?.toString().padStart(2, '0')}
+          </span>
+        )}</div>
+        <button
+          onClick={() => navigate(`/room/${featuredRoomId}`)}
+          style={{ background: 'var(--accent-secondary)', color: 'white', border: 'none', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+        >
+          Go to Main Stage
+        </button>
       </div>
     );
-  }
+  };
 
   return (
     <div style={{ position: 'relative', overflow: 'hidden' }}>
@@ -68,6 +91,9 @@ export function HomePage({ activeRooms, featuredRoomId }: HomePageProps) {
           </h1>
           <p style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', marginTop: '-10px' }}>The 24/7 Live Dating Show</p>
         </header>
+
+        {/* Main Stage CTA */}
+        {renderMainStageBanner()}
 
         {/* Matchmaking Section */}
         <div style={{ textAlign: 'center', background: 'rgba(40, 40, 45, 0.5)', backdropFilter: 'blur(10px)', padding: '30px', borderRadius: '15px', marginBottom: '40px', border: '1px solid var(--background-tertiary)' }}>

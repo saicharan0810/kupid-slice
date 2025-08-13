@@ -5,7 +5,7 @@ import { RoomPage } from './pages/RoomPage';
 import { socket } from './socket';
 import { getSessionId } from './sessionId';
 
-  const peerConnectionConfig = {
+const peerConnectionConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:global.stun.twilio.com:3478' },
@@ -33,6 +33,7 @@ function App() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [activeRooms, setActiveRooms] = useState<ActiveRoom[]>([]);
   const [featuredRoomId, setFeaturedRoomId] = useState<string | null>(null);
+  const [featuredEndsAt, setFeaturedEndsAt] = useState<number | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [mediaStateByUser, setMediaStateByUser] = useState<{ [userId: string]: { muted: boolean; videoOff: boolean } }>({});
   const currentRoomRef = useRef<string | null>(null);
@@ -105,8 +106,14 @@ function App() {
   useEffect(() => {
     const onMatchFound = ({ roomId }: { roomId: string }) => navigate(`/room/${roomId}`);
     const onActiveRoomsUpdate = ({ rooms }: { rooms: ActiveRoom[] }) => setActiveRooms(rooms);
-    const onMainStageStatus = ({ roomId }: { roomId: string | null }) => setFeaturedRoomId(roomId);
-    const onMainStageUpdate = ({ roomId }: { roomId: string | null }) => setFeaturedRoomId(roomId);
+    const onMainStageStatus = ({ roomId, endsAt }: { roomId: string | null; endsAt?: number | null }) => {
+      setFeaturedRoomId(roomId || null);
+      setFeaturedEndsAt(endsAt ?? null);
+    };
+    const onMainStageUpdate = ({ roomId, endsAt }: { roomId: string | null; endsAt?: number | null }) => {
+      setFeaturedRoomId(roomId || null);
+      setFeaturedEndsAt(endsAt ?? null);
+    };
 
     socket.on('match-found', onMatchFound);
     socket.on('active-rooms-update', onActiveRoomsUpdate);
@@ -114,7 +121,7 @@ function App() {
     socket.on('main-stage-update', onMainStageUpdate);
 
     // Only join lobby and get status once
-    socket.emit('join-lobby');
+      socket.emit('join-lobby');
     socket.emit('get-main-stage-status');
 
     return () => {
@@ -203,7 +210,7 @@ function App() {
                });
            };
         
-         pc.onicecandidate = event => {
+        pc.onicecandidate = event => {
             if (event.candidate) {
                 socket.emit('webrtc-ice-candidate', { toUserId: otherUserId, candidate: event.candidate });
             }
@@ -235,7 +242,7 @@ function App() {
     
     const onWebRTCOffer = async ({ sdp, fromUserId }: { sdp: RTCSessionDescriptionInit, fromUserId: string }) => {
         try {
-            createPeerConnection(fromUserId, false);
+        createPeerConnection(fromUserId, false);
             const pc = peerConnectionsRef.current[fromUserId];
             
             // Check if peer connection is still valid
@@ -272,7 +279,7 @@ function App() {
                     
                     const answer = await pc.createAnswer();
                     await pc.setLocalDescription(answer);
-                    socket.emit('webrtc-answer', { toUserId: fromUserId, sdp: answer });
+        socket.emit('webrtc-answer', { toUserId: fromUserId, sdp: answer });
                 } catch (rollbackError) {
                     console.error('❌ Rollback failed:', rollbackError);
                     // If rollback fails, try to close and recreate the connection
@@ -424,7 +431,7 @@ function App() {
         console.log(`User ${userId} left the room`);
         if (peerConnectionsRef.current[userId]) {
             peerConnectionsRef.current[userId].close();
-            delete peerConnectionsRef.current[userId];
+        delete peerConnectionsRef.current[userId];
         }
         // Clean up pending candidates
         if (pendingCandidatesRef.current[userId]) {
@@ -461,7 +468,7 @@ function App() {
     socket.on('media-state-update', ({ userId, muted, videoOff }: { userId: string; muted: boolean; videoOff: boolean }) => {
       setMediaStateByUser(prev => ({ ...prev, [userId]: { muted, videoOff } }));
     });
-    
+
 
 
     return () => {
@@ -475,7 +482,7 @@ function App() {
           console.log(`🔌 Closing peer connection to ${userId}`);
           peerConnectionsRef.current[userId].close();
         }
-        setRemoteStreams({});
+      setRemoteStreams({});
         // Clean up pending candidates
         pendingCandidatesRef.current = {};
         currentRoomRef.current = null;
@@ -491,17 +498,17 @@ function App() {
         connectionRetryTimeoutRef.current = null;
       }
       if (isLeavingRoom) {
-        socket.off('current-participants');
-        socket.off('existing-participants');
-        socket.off('user-joined');
-        socket.off('webrtc-offer');
-        socket.off('webrtc-answer');
-        socket.off('webrtc-ice-candidate');
-        socket.off('user-left');
-        socket.off('new-reaction');
-        socket.off('viewer-count-update');
-        socket.off('chat-history');
-        socket.off('new-chat-message');
+      socket.off('current-participants');
+      socket.off('existing-participants');
+      socket.off('user-joined');
+      socket.off('webrtc-offer');
+      socket.off('webrtc-answer');
+      socket.off('webrtc-ice-candidate');
+      socket.off('user-left');
+      socket.off('new-reaction');
+      socket.off('viewer-count-update');
+      socket.off('chat-history');
+      socket.off('new-chat-message');
         socket.off('media-state-update');
       }
     };
@@ -532,6 +539,7 @@ function App() {
             />
           }
         />
+        <Route path="/" element={<HomePage activeRooms={activeRooms} featuredRoomId={featuredRoomId} featuredEndsAt={featuredEndsAt} />} />
       </Routes>
     </div>
   );
