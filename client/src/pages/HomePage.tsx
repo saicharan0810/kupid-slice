@@ -29,12 +29,8 @@ export function HomePage({ activeRooms, featuredRoomId, featuredEndsAt }: HomePa
     setIsWaiting(false);
   };
   
-  useEffect(() => {
-    // This hook handles navigation if a featured room exists
-    if (featuredRoomId) {
-      navigate(`/room/${featuredRoomId}`);
-    }
-  }, [featuredRoomId, navigate]);
+  // Do not auto-redirect to main stage; show CTA banner instead
+  useEffect(() => {}, [featuredRoomId]);
 
   useEffect(() => {
     return () => {
