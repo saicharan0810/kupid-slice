@@ -12,6 +12,8 @@ const io = new Server(httpServer, { cors: { origin: "*", methods: ["GET", "POST"
 const rooms = {};
 let matchmakingQueue = [];
 const sessionMap = new Map(); // Maps socket.id -> sessionId
+// Main Stage state
+let mainStage = { roomId: null, endsAt: null, timer: null };
 
 const broadcastViewerCount = (roomId) => {
   if (rooms[roomId]) {
@@ -32,6 +34,33 @@ const broadcastActiveRooms = () => {
     }));
   console.log(`🏠 Active rooms: ${activeRooms.length}`, activeRooms);
   io.to('lobby').emit('active-rooms-update', { rooms: activeRooms });
+};
+
+const broadcastMainStageStatus = () => {
+  io.to('lobby').emit('main-stage-status', { roomId: mainStage.roomId, endsAt: mainStage.endsAt });
+};
+
+const setMainStage = (roomId, durationMs = 8 * 60 * 1000) => {
+  if (mainStage.timer) clearTimeout(mainStage.timer);
+  mainStage.roomId = roomId;
+  mainStage.endsAt = Date.now() + durationMs;
+  broadcastMainStageStatus();
+  io.to('lobby').emit('main-stage-update', { roomId: mainStage.roomId, endsAt: mainStage.endsAt });
+  mainStage.timer = setTimeout(() => {
+    // Clear current and try to promote next pair from queue
+    mainStage.roomId = null;
+    mainStage.endsAt = null;
+    broadcastMainStageStatus();
+    tryPromoteFromQueue();
+  }, durationMs);
+};
+
+const clearMainStageIfRoom = (roomId) => {
+  if (mainStage.roomId === roomId) {
+    if (mainStage.timer) clearTimeout(mainStage.timer);
+    mainStage = { roomId: null, endsAt: null, timer: null };
+    broadcastMainStageStatus();
+  }
 };
 
 const logAllRooms = () => {
@@ -94,7 +123,11 @@ io.on('connection', (socket) => {
     console.log(`✅ Session Registered: Socket ${socket.id} is session ${sessionId}`);
   });
 
-  socket.on('join-lobby', () => socket.join('lobby'));
+  socket.on('join-lobby', () => {
+    socket.join('lobby');
+    // Send current main stage on lobby join
+    socket.emit('main-stage-status', { roomId: mainStage.roomId, endsAt: mainStage.endsAt });
+  });
   socket.on('leave-lobby', () => socket.leave('lobby'));
 
   socket.on('enter-matchmaking-queue', ({ sessionId }) => {
@@ -108,13 +141,7 @@ io.on('connection', (socket) => {
       console.log(`⚠️ User ${sessionId} already in queue, skipping`);
     }
     
-    if (matchmakingQueue.length >= 2) {
-      const user1 = matchmakingQueue.shift();
-      const user2 = matchmakingQueue.shift();
-      const newRoomId = uuidV4();
-      console.log(`🎯 Match found! Creating room ${newRoomId} for ${user1.sessionId} and ${user2.sessionId}`);
-      io.to(user1.socketId).to(user2.socketId).emit('match-found', { roomId: newRoomId });
-    }
+    if (matchmakingQueue.length >= 2) tryPromoteFromQueue();
   });
 
   socket.on('leave-matchmaking-queue', ({ sessionId }) => {
@@ -155,6 +182,10 @@ io.on('connection', (socket) => {
       }
       // Always broadcast active rooms after any participant joins
       broadcastActiveRooms();
+      // If no current main stage, promote this room
+      if (!mainStage.roomId && rooms[roomId].participants.length === 2) {
+        setMainStage(roomId);
+      }
     } else {
       console.log(`👀 Adding ${sessionId} as spectator (room is full)`);
       rooms[roomId].spectators.push(newUser);
@@ -205,7 +236,19 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`🔌 Socket ${socket.id} disconnected`);
+    const sessionId = sessionMap.get(socket.id);
     removeUser(socket.id);
+    // If a main stage participant left, clear and try to promote next
+    for (const roomId in rooms) {
+      const r = rooms[roomId];
+      if (!r) continue;
+      const isParticipant = r.participants.find(p => p.sessionId === sessionId);
+      if (isParticipant) {
+        clearMainStageIfRoom(roomId);
+        break;
+      }
+    }
+    tryPromoteFromQueue();
   });
 
   // Debug command to log all rooms
@@ -228,6 +271,18 @@ io.on('connection', (socket) => {
     }
   });
 });
+
+// Helper to promote next two users from queue into a new room and set as main stage
+function tryPromoteFromQueue() {
+  if (matchmakingQueue.length >= 2) {
+    const user1 = matchmakingQueue.shift();
+    const user2 = matchmakingQueue.shift();
+    const newRoomId = uuidV4();
+    console.log(`🎯 Match found! Creating room ${newRoomId} for ${user1.sessionId} and ${user2.sessionId}`);
+    io.to(user1.socketId).to(user2.socketId).emit('match-found', { roomId: newRoomId });
+    // Set as main stage when they join; fallback timer will promote again if needed
+  }
+}
 
 const PORT = 3000;
 httpServer.listen(PORT, () => {
