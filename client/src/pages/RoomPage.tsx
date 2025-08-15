@@ -232,10 +232,11 @@ export const RoomPage: React.FC<RoomPageProps> = ({
     socket.emit('vote-in-poll', { roomId, pollId, option });
   };
 
-  const handleStartPoll = (question: string, options: string[]) => {
-    if (!roomId || !question.trim() || options.length < 2) return;
-    socket.emit('start-audience-poll', { roomId, question: question.trim(), options });
-  };
+  // Poll functionality removed - participants should not start polls
+  // const handleStartPoll = (question: string, options: string[]) => {
+  //   if (!roomId || !question.trim() || options.length < 2) return;
+  //   socket.emit('start-audience-poll', { roomId, question: question.trim(), options });
+  // };
 
   const isParticipant = userRole === 'participant';
   const hasRemoteStreams = Object.keys(remoteStreams).length > 0;
