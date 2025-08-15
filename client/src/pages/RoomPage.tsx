@@ -420,31 +420,7 @@ export const RoomPage: React.FC<RoomPageProps> = ({
             {/* Queue Check Button for Participants */}
             {/* Removed queue check button */}
             
-            {userRole === 'spectator' && (
-              <button 
-                onClick={() => {
-                  const question = prompt('Enter poll question:');
-                  if (question) {
-                    const options = prompt('Enter options (comma-separated):')?.split(',').map(o => o.trim()).filter(o => o);
-                    if (options && options.length >= 2) {
-                      handleStartPoll(question, options);
-                    }
-                  }
-                }}
-                style={{ 
-                  background: 'var(--accent-secondary)', 
-                  color: 'white', 
-                  border: 'none', 
-                  padding: '8px 15px', 
-                  borderRadius: '8px', 
-                  cursor: 'pointer', 
-                  fontWeight: '600',
-                  fontSize: '12px'
-                }}
-              >
-                📊 Start Poll
-              </button>
-            )}
+            {/* Poll button removed - participants should not start polls */}
             
             {/* Go to Homepage button for spectators */}
             {userRole === 'spectator' && (
