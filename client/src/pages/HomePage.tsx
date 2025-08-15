@@ -17,28 +17,62 @@ interface HomePageProps {
 
 export function HomePage({ activeRooms, featuredRoomId, featuredEndsAt }: HomePageProps) {
   const [isWaiting, setIsWaiting] = useState(false);
+  const [isInQueue, setIsInQueue] = useState(false);
+  const [roomIdInput, setRoomIdInput] = useState('');
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const navigate = useNavigate();
+
+  const handleCreateRoom = () => {
+    if (!roomIdInput.trim()) {
+      alert('Please enter a room ID');
+      return;
+    }
+    socket.emit('create-room', { sessionId: getSessionId(), roomId: roomIdInput.trim() });
+    setIsWaiting(true);
+  };
 
   const handleEnterQueue = () => {
     socket.emit('enter-matchmaking-queue', { sessionId: getSessionId() });
-    setIsWaiting(true);
+    setIsInQueue(true);
   };
 
   const handleLeaveQueue = () => {
     socket.emit('leave-matchmaking-queue', { sessionId: getSessionId() });
-    setIsWaiting(false);
+    setIsInQueue(false);
   };
-  
-  // Do not auto-redirect to main stage; show CTA banner instead
-  useEffect(() => {}, [featuredRoomId]);
 
+
+  
+  // Listen for room creation and errors
   useEffect(() => {
-    return () => {
-      if (isWaiting) {
-        handleLeaveQueue();
-      }
+    const handleRoomCreated = ({ roomId }: { roomId: string }) => {
+      setIsWaiting(false);
+      setShowCreateForm(false);
+      setRoomIdInput('');
+      navigate(`/room/${roomId}`);
     };
-  }, [isWaiting]);
+
+    const handleRoomError = ({ message }: { message: string }) => {
+      setIsWaiting(false);
+      alert(`Room creation failed: ${message}`);
+    };
+
+    const handleMatchFound = ({ roomId }: { roomId: string }) => {
+      setIsInQueue(false);
+      navigate(`/room/${roomId}`);
+    };
+
+    socket.on('room-created', handleRoomCreated);
+    socket.on('room-error', handleRoomError);
+    socket.on('match-found', handleMatchFound);
+    return () => {
+      socket.off('room-created', handleRoomCreated);
+      socket.off('room-error', handleRoomError);
+      socket.off('match-found', handleMatchFound);
+    };
+  }, [navigate]);
+
+
 
   const renderMainStageBanner = () => {
     if (!featuredRoomId) return null;
@@ -91,26 +125,82 @@ export function HomePage({ activeRooms, featuredRoomId, featuredEndsAt }: HomePa
         {/* Main Stage CTA */}
         {renderMainStageBanner()}
 
-        {/* Matchmaking Section */}
+        {/* Room Creation Section */}
         <div style={{ textAlign: 'center', background: 'rgba(40, 40, 45, 0.5)', backdropFilter: 'blur(10px)', padding: '30px', borderRadius: '15px', marginBottom: '40px', border: '1px solid var(--background-tertiary)' }}>
-          {!isWaiting ? (
+          {!showCreateForm ? (
             <div>
-              <h2 style={{ color: 'var(--text-primary)', marginTop: 0 }}>Want to be next?</h2>
-              <button 
-                style={{ fontSize: '20px', padding: '12px 25px', cursor: 'pointer', border: 'none', background: 'var(--accent-primary)', color: 'white', borderRadius: '10px' }} 
-                onClick={handleEnterQueue}
-              >
-                Step Into the Spotlight
-              </button>
+              <h2 style={{ color: 'var(--text-primary)', marginTop: 0 }}>Start Your Own Show</h2>
+              <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button 
+                  style={{ fontSize: '18px', padding: '12px 25px', cursor: 'pointer', border: 'none', background: 'var(--accent-primary)', color: 'white', borderRadius: '10px' }} 
+                  onClick={() => setShowCreateForm(true)}
+                >
+                  Create a Room
+                </button>
+                <button 
+                  style={{ fontSize: '18px', padding: '12px 25px', cursor: 'pointer', border: 'none', background: 'var(--accent-secondary)', color: 'white', borderRadius: '10px' }} 
+                  onClick={handleEnterQueue}
+                  disabled={isInQueue}
+                >
+                  {isInQueue ? 'Waiting for Match...' : 'Find a Match'}
+                </button>
+              </div>
+              {isInQueue && (
+                <div style={{ marginTop: '15px' }}>
+                  <button 
+                    style={{ fontSize: '14px', padding: '8px 15px', cursor: 'pointer', background: 'var(--background-secondary)', color: 'var(--text-primary)', border: '1px solid var(--background-tertiary)', borderRadius: '8px' }} 
+                    onClick={handleLeaveQueue}
+                  >
+                    Cancel Matchmaking
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div>
-              <button style={{ fontSize: '20px', padding: '12px 25px', background: 'var(--background-tertiary)', color: 'var(--text-secondary)', border: 'none', borderRadius: '10px' }} disabled>
-                Waiting for a match...
-              </button>
-              <button style={{ marginLeft: '10px', padding: '8px 15px', cursor: 'pointer', background: 'var(--background-secondary)', color: 'var(--text-primary)', border: '1px solid var(--background-tertiary)', borderRadius: '10px' }} onClick={handleLeaveQueue}>
-                Cancel
-              </button>
+              <h2 style={{ color: 'var(--text-primary)', marginTop: 0 }}>Create Your Room</h2>
+              <div style={{ marginBottom: '20px' }}>
+                <input
+                  type="text"
+                  placeholder="Enter room ID (e.g., my-date-room)"
+                  value={roomIdInput}
+                  onChange={(e) => setRoomIdInput(e.target.value)}
+                  style={{
+                    width: '100%',
+                    maxWidth: '300px',
+                    padding: '12px',
+                    fontSize: '16px',
+                    border: '1px solid var(--background-tertiary)',
+                    borderRadius: '8px',
+                    background: 'var(--background-secondary)',
+                    color: 'var(--text-primary)',
+                    marginBottom: '15px'
+                  }}
+                />
+                <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '15px' }}>
+                  Choose a unique name for your room
+                </div>
+              </div>
+              <div>
+                <button 
+                  style={{ fontSize: '18px', padding: '10px 20px', cursor: 'pointer', border: 'none', background: 'var(--accent-primary)', color: 'white', borderRadius: '8px', marginRight: '10px' }} 
+                  onClick={handleCreateRoom}
+                  disabled={isWaiting}
+                >
+                  {isWaiting ? 'Creating...' : 'Create Room'}
+                </button>
+                <button 
+                  style={{ fontSize: '18px', padding: '10px 20px', cursor: 'pointer', background: 'var(--background-secondary)', color: 'var(--text-primary)', border: '1px solid var(--background-tertiary)', borderRadius: '8px' }} 
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setRoomIdInput('');
+                    setIsWaiting(false);
+                  }}
+                  disabled={isWaiting}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
         </div>

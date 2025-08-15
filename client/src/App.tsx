@@ -19,7 +19,7 @@ interface ActiveRoom { roomId: string; viewerCount: number; }
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const peerConnectionsRef = useRef<{ [key: string]: RTCPeerConnection }>({});
   const pendingCandidatesRef = useRef<{ [key: string]: RTCIceCandidateInit[] }>({});
   const [remoteStreams, setRemoteStreams] = useState<{ [key: string]: MediaStream }>({});
@@ -105,7 +105,10 @@ function App() {
   // HOOK 3: Handles global events - only run once
   useEffect(() => {
     const onMatchFound = ({ roomId }: { roomId: string }) => navigate(`/room/${roomId}`);
-    const onActiveRoomsUpdate = ({ rooms }: { rooms: ActiveRoom[] }) => setActiveRooms(rooms);
+    const onActiveRoomsUpdate = ({ rooms }: { rooms: ActiveRoom[] }) => {
+      console.log('📡 Received active rooms update:', rooms);
+      setActiveRooms(rooms);
+    };
     const onMainStageStatus = ({ roomId, endsAt }: { roomId: string | null; endsAt?: number | null }) => {
       setFeaturedRoomId(roomId || null);
       setFeaturedEndsAt(endsAt ?? null);
@@ -204,9 +207,15 @@ function App() {
         }
         
             pc.ontrack = event => {
+               console.log(`🎥 Received track from ${otherUserId}`);
                setRemoteStreams(prev => {
-                   const newStreams = { ...prev, [otherUserId]: event.streams[0] };
-                   return newStreams;
+                   // Only update if the stream is different
+                   if (prev[otherUserId] !== event.streams[0]) {
+                       const newStreams = { ...prev, [otherUserId]: event.streams[0] };
+                       console.log(`📹 Updated streams for ${otherUserId}`);
+                       return newStreams;
+                   }
+                   return prev;
                });
            };
         
@@ -217,11 +226,17 @@ function App() {
         };
         
             pc.onconnectionstatechange = () => {
+               console.log(`🔗 Connection state changed for ${otherUserId}: ${pc.connectionState}`);
                if (pc.connectionState === 'closed' || pc.connectionState === 'failed') {
                    setRemoteStreams(prev => {
-                       const newStreams = { ...prev };
-                       delete newStreams[otherUserId];
-                       return newStreams;
+                       // Only remove if the stream exists
+                       if (prev[otherUserId]) {
+                           const newStreams = { ...prev };
+                           delete newStreams[otherUserId];
+                           console.log(`🗑️ Removed stream for ${otherUserId}`);
+                           return newStreams;
+                       }
+                       return prev;
                    });
                }
            };
@@ -356,7 +371,11 @@ function App() {
         }
     };
     const onCurrentParticipants = ({ participantIds }: { participantIds: string[] }) => {
-        console.log(`Current participants: ${participantIds.join(', ')}`);
+        console.log(`🎬 Current participants: ${participantIds.join(', ')}`);
+        console.log(`🎬 Setting user role to spectator (was: ${userRole})`);
+        // This event is sent to spectators, so update the role
+        setUserRole('spectator');
+        
         participantIds.forEach(id => createPeerConnection(id, true));
         if (participantIds.length > 0) setCallState('active');
     };
@@ -404,6 +423,10 @@ function App() {
 
     const onExistingParticipants = ({ participantIds }: { participantIds: string[] }) => {
         console.log(`🎯 Existing participants: ${participantIds.join(', ')}`);
+        // This event is sent to participants, so update the role only if not already a spectator
+        if (userRole !== 'spectator') {
+            setUserRole('participant');
+        }
         const currentUserId = getSessionId();
         console.log(`🔍 Current user ID: ${currentUserId}`);
         console.log(`🔍 Session storage ID: ${sessionStorage.getItem('kupid-sessionId')}`);
@@ -517,7 +540,6 @@ function App() {
   return (
     <div className="App">
       <Routes>
-        <Route path="/" element={<HomePage activeRooms={activeRooms} featuredRoomId={featuredRoomId} />} />
         <Route
           path="/room/:roomId"
           element={
